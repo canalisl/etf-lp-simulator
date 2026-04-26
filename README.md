@@ -1,10 +1,12 @@
 # 📊 ETF LP 호가조정 시뮬레이터
 
+🚀 **[Live Demo →](https://etf-lp-simulator.streamlit.app)** &nbsp;|&nbsp; [![Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://etf-lp-simulator.streamlit.app)
+
 > PLUS 라인업 분석을 핵심으로, 임의 ETF 종목 분석까지 지원하는 범용 LP 분석 도구
 
 한화자산운용 PLUS 브랜드 ETF 분석을 핵심으로 하면서, **임의 ETF 종목코드 입력**과 **사용자 정의 비교**까지 지원하는 범용 LP 분석 도구입니다. PLUS 특화 분석은 그대로 유지하면서, 토글 하나로 모드 전환이 가능합니다.
 
-> **한화투자증권 디지털금융 직무 지원용 포트폴리오 프로젝트**
+> **한화투자증권 디지털금융 직무 포트폴리오 프로젝트**
 
 ---
 
@@ -24,6 +26,10 @@
 9. **종목명 자동 조회** — 종목코드만 입력하면 이름 표시 + 유효성 즉시 검증
 10. **이중 모드 UI** — 토글 하나로 PLUS 라인업 / 직접 입력 전환
 
+### 배포 (데모 모드)
+11. **Streamlit Community Cloud 배포** — 정적 데이터 캐시 기반 데모 모드로 누구나 접근 가능
+12. **이중 데이터 소스** — 환경변수(`DEMO_MODE`)로 실시간 KRX 호출 / CSV 캐시 자동 전환
+
 ---
 
 ## 📌 v1 → v2 변경사항
@@ -35,6 +41,7 @@
 | 종목 검증 | N/A | 종목명 자동 조회 + 유효성 표시 (✅/❌) |
 | 헬퍼 함수 | - | `get_etf_name_safe`, `parse_ticker_list` 추가 |
 | 캐싱 | `@st.cache_data` (데이터) | + `@functools.lru_cache` (종목명) |
+| 배포 | 로컬 only | + Streamlit Cloud 데모 모드 배포 |
 
 ---
 
@@ -77,6 +84,7 @@
 - **functools** — `lru_cache`로 종목명 조회 캐싱
 - **Streamlit** — 웹 UI 프레임워크 (`st.session_state` 기반 상태 관리)
 - **Plotly** — 인터랙티브 호가창 차트
+- **Streamlit Community Cloud** — 무료 배포 호스팅
 
 ---
 
@@ -84,10 +92,15 @@
 
 ```
 etf-lp-simulator/
-├── lp_calc.py          # 데이터 수집 + 괴리율 계산 + LP 호가 추천 + 가상 호가창 + 종목명 헬퍼
-├── main.py             # CLI 비교 분석 스크립트 (PLUS 5종목 일괄 출력)
-├── app.py              # Streamlit 웹 앱 (메인 시뮬레이터, 2개 탭 + 이중 모드)
-├── requirements.txt    # 의존성 목록
+├── lp_calc.py              # 데이터 수집 + 괴리율 계산 + LP 호가 추천 + 가상 호가창 + 종목명 헬퍼
+├── main.py                 # CLI 비교 분석 스크립트 (PLUS 5종목 일괄 출력)
+├── app.py                  # Streamlit 웹 앱 (메인 시뮬레이터, 2개 탭 + 이중 모드)
+├── prepare_demo_data.py    # 데모 모드용 CSV 사전 생성 스크립트
+├── data/                   # 데모 모드용 캐시 데이터 (CSV + 종목명 매핑)
+│   ├── 0000J0.csv
+│   ├── ... (총 10종목)
+│   └── etf_names.json
+├── requirements.txt        # 의존성 목록
 └── README.md
 ```
 
@@ -140,11 +153,32 @@ def get_etf_name_safe(ticker: str) -> str | None:
 
 → 잘못된 종목코드 입력 시 비싼 OHLCV API 호출 전 **1차 검증**으로 차단.
 
+### 6. 데모 / 실시간 모드 자동 분기
+
+```python
+DEMO_MODE = os.getenv("DEMO_MODE", "0") == "1"
+
+def fetch_etf_data(ticker, start_date, end_date):
+    if DEMO_MODE:
+        # CSV 캐시에서 읽음 (배포 환경)
+        return pd.read_csv(DATA_DIR / f"{ticker}.csv", ...)
+    # pykrx로 KRX 실시간 호출 (로컬 개발)
+    return stock.get_etf_ohlcv_by_date(start_date, end_date, ticker)
+```
+
+→ KRX 데이터 라이선스 + 사용자 접근성의 균형 고려한 설계.
+
 ---
 
 ## 🚀 설치 및 실행
 
-### 1. 가상환경 생성 + 의존성 설치
+### 옵션 A: 라이브 데모 (즉시)
+
+별도 셋업 없이 **[https://etf-lp-simulator.streamlit.app](https://etf-lp-simulator.streamlit.app)** 접속.
+
+### 옵션 B: 로컬 개발 환경
+
+#### 1. 가상환경 생성 + 의존성 설치
 
 ```powershell
 python -m venv .venv
@@ -152,7 +186,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 2. KRX 회원 인증 환경변수 설정 (필수)
+#### 2. KRX 회원 인증 환경변수 설정 (실시간 모드용)
 
 [data.krx.co.kr](https://data.krx.co.kr) 무료 회원가입 후, PowerShell에서:
 
@@ -163,7 +197,7 @@ pip install -r requirements.txt
 
 → 터미널 재시작 후 적용
 
-### 3. 실행
+#### 3. 실행
 
 **CLI 비교 분석** (PLUS 5종목):
 
@@ -176,6 +210,15 @@ python main.py
 ```powershell
 streamlit run app.py
 ```
+
+#### 4. 데모 모드로 실행 (KRX 인증 없이)
+
+```powershell
+$env:DEMO_MODE = "1"
+streamlit run app.py
+```
+
+→ `data/` 폴더의 CSV 캐시에서 데이터를 읽음.
 
 ---
 
@@ -225,16 +268,10 @@ streamlit run app.py
 9. **확장 가능한 아키텍처** — PLUS 특화 모드와 범용 모드를 토글로 분리, 각 모드의 가치를 모두 보존
 10. **실무 적용 가능성** — 신규 ETF 상장 시에도 코드 수정 없이 즉시 분석 가능
 
-### 면접 예상 질문
+### 배포·운영 어필 포인트 ★★
+11. **Streamlit Community Cloud 배포** — 면접관/평가자가 환경 셋업 없이 즉시 시연 가능
+12. **이중 데이터 소스 설계** — 환경변수로 실시간 모드(KRX 인증) / 데모 모드(CSV 캐시) 자동 전환, 데이터 라이선스와 접근성의 균형 고려
 
-| 질문 | 답변 키워드 |
-|------|-------------|
-| 왜 임의 입력 모드를 추가했나? | 실무에서는 분석 대상이 고정되지 않음. 범용 도구로의 확장 |
-| 잘못된 종목코드 처리는? | `lru_cache`로 종목명 조회 감싸고 None 반환 시 즉시 에러 피드백 |
-| 비교 종목을 10개로 제한한 이유? | UX(분석 시간) + KRX 호출 부담 균형. 30초~1분 내 완료 |
-| PLUS 특화 + 범용 모드를 둘 다 둔 이유? | PLUS 특화는 자소서의 핵심 스토리, 범용은 실무 적합성 |
-
----
 
 ## 🔮 향후 개선 방향
 
