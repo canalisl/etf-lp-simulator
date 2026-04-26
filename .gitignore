@@ -1,0 +1,21 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Streamlit secrets (배포 환경에서만)
+.streamlit/secrets.toml
+
+# 환경변수 파일 (실수로 커밋 방지)
+.env
+*.env
+
+# Local CSV exports
+exports/
